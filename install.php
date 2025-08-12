@@ -32,6 +32,7 @@ if ($link) {
         `otpusk` INT NOT NULL DEFAULT 0,
         `bolen` INT NOT NULL DEFAULT 0,
         `inoe` INT NOT NULL DEFAULT 0,
+        `примечание` TEXT,
         UNIQUE KEY `department_date` (`department_id`, `report_date`),
         FOREIGN KEY (`department_id`) REFERENCES `departments`(`id`) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -42,6 +43,11 @@ if ($link) {
         `user_id` INT,
         `action` VARCHAR(255) NOT NULL,
         FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    CREATE TABLE IF NOT EXISTS `settings` (
+        `setting_key` VARCHAR(50) NOT NULL PRIMARY KEY,
+        `setting_value` TEXT
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ";
 
@@ -56,6 +62,20 @@ if ($link) {
         echo "Таблицы успешно созданы.<br>";
     } else {
         echo "Ошибка при создании таблиц: " . mysqli_error($link) . "<br>";
+    }
+
+    // Добавление настроек по умолчанию
+    $sql_settings = "
+    INSERT INTO settings (setting_key, setting_value) VALUES
+    ('app_title', 'Учет Статуса Сотрудников'),
+    ('app_logo', 'assets/logo.png'),
+    ('color_scheme', 'default')
+    ON DUPLICATE KEY UPDATE setting_key=setting_key;
+    ";
+    if(mysqli_query($link, $sql_settings)){
+        echo "Настройки по умолчанию успешно добавлены.<br>";
+    } else {
+        echo "Ошибка при добавлении настроек по умолчанию: " . mysqli_error($link) . "<br>";
     }
 
 

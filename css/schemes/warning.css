@@ -1,0 +1,33 @@
+/* Warning (Желтая) Theme */
+.navbar.bg-primary, .footer.bg-primary {
+    background-color: #ffc107 !important;
+    color: #212529 !important;
+}
+.navbar.bg-primary .navbar-brand,
+.navbar.bg-primary .nav-link,
+.navbar.bg-primary .navbar-text {
+    color: #212529 !important;
+}
+.navbar.bg-primary .btn-outline-light {
+    color: #212529;
+    border-color: #212529;
+}
+.navbar.bg-primary .btn-outline-light:hover {
+    color: #fff;
+    background-color: #212529;
+    border-color: #212529;
+}
+
+
+.bg-secondary {
+    background-color: #5a6268 !important;
+}
+.btn-primary {
+    background-color: #ffc107;
+    border-color: #ffc107;
+    color: #212529;
+}
+.btn-primary:hover {
+    background-color: #e0a800;
+    border-color: #d39e00;
+}

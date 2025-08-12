@@ -1,0 +1,15 @@
+/* Success (Зеленая) Theme */
+.navbar.bg-primary, .footer.bg-primary {
+    background-color: #28a745 !important;
+}
+.bg-secondary {
+    background-color: #5a6268 !important;
+}
+.btn-primary {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+.btn-primary:hover {
+    background-color: #218838;
+    border-color: #1e7e34;
+}

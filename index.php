@@ -15,37 +15,38 @@ require_once "includes/functions.php";
 $error = '';
 $success = '';
 
+// Определяем дату для отображения. По умолчанию сегодня.
+$view_date = $_GET['view_date'] ?? date('Y-m-d');
+
 // --- Логика для пользователей отделов (отправка/обновление статуса) ---
 if ($_SESSION['role'] === 'department') {
     $department_id = $_SESSION['department_id'];
-    $report_date = date('Y-m-d');
+    // Пользователь может отправлять данные только за СЕГОДНЯ
+    $report_date_today = date('Y-m-d');
 
     // Обработка отправки формы
     if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_status'])) {
-        // Проверяем, что ID отдела действителен
         if(empty($department_id)){
             $error = "За вашей учетной записью не закреплен отдел.";
         } else {
-             // Собираем данные из формы
             $nalico = (int)$_POST['nalico'];
             $naryad = (int)$_POST['naryad'];
             $komandirovka = (int)$_POST['komandirovka'];
             $otpusk = (int)$_POST['otpusk'];
             $bolen = (int)$_POST['bolen'];
             $inoe = (int)$_POST['inoe'];
+            $примечание = trim($_POST['примечание']);
 
-            // Используем INSERT ... ON DUPLICATE KEY UPDATE для атомарности
-            $sql = "INSERT INTO statuses (department_id, report_date, nalico, naryad, komandirovka, otpusk, bolen, inoe)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            $sql = "INSERT INTO statuses (department_id, report_date, nalico, naryad, komandirovka, otpusk, bolen, inoe, примечание)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE
                     nalico = VALUES(nalico), naryad = VALUES(naryad), komandirovka = VALUES(komandirovka),
-                    otpusk = VALUES(otpusk), bolen = VALUES(bolen), inoe = VALUES(inoe)";
+                    otpusk = VALUES(otpusk), bolen = VALUES(bolen), inoe = VALUES(inoe), примечание = VALUES(примечание)";
 
             if ($stmt = mysqli_prepare($link, $sql)) {
-                mysqli_stmt_bind_param($stmt, "isiiiiii", $department_id, $report_date, $nalico, $naryad, $komandirovka, $otpusk, $bolen, $inoe);
+                mysqli_stmt_bind_param($stmt, "isiiiiiis", $department_id, $report_date_today, $nalico, $naryad, $komandirovka, $otpusk, $bolen, $inoe, $примечание);
                 if (mysqli_stmt_execute($stmt)) {
-                    $log_action = "Пользователь '" . $_SESSION['username'] . "' обновил/добавил данные за " . $report_date;
-                    log_event($link, $_SESSION['id'], $log_action);
+                    log_event($link, $_SESSION['id'], "Обновлены данные за " . $report_date_today);
                     $success = "Данные за сегодня успешно сохранены.";
                 } else {
                     $error = "Ошибка при сохранении данных: " . mysqli_error($link);
@@ -58,12 +59,12 @@ if ($_SESSION['role'] === 'department') {
     // Получаем текущие данные за сегодня для предзаполнения формы
     $current_status = [
         'nalico' => 0, 'naryad' => 0, 'komandirovka' => 0,
-        'otpusk' => 0, 'bolen' => 0, 'inoe' => 0
+        'otpusk' => 0, 'bolen' => 0, 'inoe' => 0, 'примечание' => ''
     ];
     if(!empty($department_id)){
-        $sql_fetch = "SELECT nalico, naryad, komandirovka, otpusk, bolen, inoe FROM statuses WHERE department_id = ? AND report_date = ?";
+        $sql_fetch = "SELECT nalico, naryad, komandirovka, otpusk, bolen, inoe, примечание FROM statuses WHERE department_id = ? AND report_date = ?";
         if ($stmt_fetch = mysqli_prepare($link, $sql_fetch)) {
-            mysqli_stmt_bind_param($stmt_fetch, "is", $department_id, $report_date);
+            mysqli_stmt_bind_param($stmt_fetch, "is", $department_id, $report_date_today);
             mysqli_stmt_execute($stmt_fetch);
             $result = mysqli_stmt_get_result($stmt_fetch);
             if ($row = mysqli_fetch_assoc($result)) {
@@ -75,7 +76,6 @@ if ($_SESSION['role'] === 'department') {
 }
 
 // --- Логика для всех пользователей (отображение сводной таблицы) ---
-$today_date_formatted = date('d.m.Y');
 $grand_total = [
     'total' => 0, 'nalico' => 0, 'naryad' => 0, 'komandirovka' => 0,
     'otpusk' => 0, 'bolen' => 0, 'inoe' => 0
@@ -84,15 +84,15 @@ $sql_summary = "
     SELECT
         d.name AS department_name,
         s.report_date,
-        s.nalico, s.naryad, s.komandirovka, s.otpusk, s.bolen, s.inoe
+        s.nalico, s.naryad, s.komandirovka, s.otpusk, s.bolen, s.inoe, s.примечание
     FROM departments d
-    LEFT JOIN (
-        SELECT *, ROW_NUMBER() OVER(PARTITION BY department_id ORDER BY report_date DESC) as rn
-        FROM statuses
-    ) s ON d.id = s.department_id AND s.rn = 1
+    LEFT JOIN statuses s ON d.id = s.department_id AND s.report_date = ?
     ORDER BY d.name;
 ";
-$summary_result = mysqli_query($link, $sql_summary);
+$stmt_summary = mysqli_prepare($link, $sql_summary);
+mysqli_stmt_bind_param($stmt_summary, "s", $view_date);
+mysqli_stmt_execute($stmt_summary);
+$summary_result = mysqli_stmt_get_result($stmt_summary);
 
 
 // Подключаем header
@@ -110,7 +110,7 @@ require_once "includes/header.php";
 <?php if ($_SESSION['role'] === 'department'): ?>
 <div class="card mb-4">
     <div class="card-header">
-        <h4>Ввод данных за сегодня (<?php echo $today_date_formatted; ?>)</h4>
+        <h4>Ввод данных за сегодня (<?php echo date('d.m.Y'); ?>)</h4>
     </div>
     <div class="card-body">
          <?php if(empty($department_id)): ?>
@@ -118,30 +118,16 @@ require_once "includes/header.php";
         <?php else: ?>
         <form action="index.php" method="post">
             <div class="form-row">
-                <div class="form-group col-md-2">
-                    <label for="nalico">Налицо</label>
-                    <input type="number" class="form-control" name="nalico" value="<?php echo $current_status['nalico']; ?>" required min="0">
-                </div>
-                <div class="form-group col-md-2">
-                    <label for="naryad">Наряд</label>
-                    <input type="number" class="form-control" name="naryad" value="<?php echo $current_status['naryad']; ?>" required min="0">
-                </div>
-                <div class="form-group col-md-2">
-                    <label for="komandirovka">Командировка</label>
-                    <input type="number" class="form-control" name="komandirovka" value="<?php echo $current_status['komandirovka']; ?>" required min="0">
-                </div>
-                <div class="form-group col-md-2">
-                    <label for="otpusk">Отпуск</label>
-                    <input type="number" class="form-control" name="otpusk" value="<?php echo $current_status['otpusk']; ?>" required min="0">
-                </div>
-                <div class="form-group col-md-2">
-                    <label for="bolen">Болен</label>
-                    <input type="number" class="form-control" name="bolen" value="<?php echo $current_status['bolen']; ?>" required min="0">
-                </div>
-                 <div class="form-group col-md-2">
-                    <label for="inoe">Иное</label>
-                    <input type="number" class="form-control" name="inoe" value="<?php echo $current_status['inoe']; ?>" required min="0">
-                </div>
+                <div class="form-group col-md-2"><label>Налицо</label><input type="number" class="form-control" name="nalico" value="<?php echo $current_status['nalico']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label>Наряд</label><input type="number" class="form-control" name="naryad" value="<?php echo $current_status['naryad']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label>Командировка</label><input type="number" class="form-control" name="komandirovka" value="<?php echo $current_status['komandirovka']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label>Отпуск</label><input type="number" class="form-control" name="otpusk" value="<?php echo $current_status['otpusk']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label>Болен</label><input type="number" class="form-control" name="bolen" value="<?php echo $current_status['bolen']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label>Иное</label><input type="number" class="form-control" name="inoe" value="<?php echo $current_status['inoe']; ?>" required min="0"></div>
+            </div>
+            <div class="form-group">
+                <label for="примечание">Примечание</label>
+                <textarea name="примечание" class="form-control" rows="2"><?php echo htmlspecialchars($current_status['примечание']); ?></textarea>
             </div>
             <button type="submit" name="submit_status" class="btn btn-primary">Сохранить данные</button>
         </form>
@@ -154,14 +140,23 @@ require_once "includes/header.php";
 <!-- Сводная таблица для всех -->
 <div class="card">
     <div class="card-header">
-        <h4>Сводная информация по управлению (последние данные)</h4>
+        <div class="d-flex justify-content-between align-items-center">
+            <h4>Сводная информация по управлению за <?php echo date('d.m.Y', strtotime($view_date)); ?></h4>
+            <form action="index.php" method="get" class="form-inline">
+                <div class="form-group">
+                    <label for="view_date" class="mr-2">Выберите дату:</label>
+                    <input type="date" id="view_date" name="view_date" class="form-control" value="<?php echo $view_date; ?>">
+                </div>
+                <button type="submit" class="btn btn-secondary ml-2">Показать</button>
+            </form>
+        </div>
     </div>
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-bordered table-hover table-sm text-center">
+            <table class="table table-bordered table-hover table-sm text-center table-striped">
                 <thead class="thead-light">
                     <tr>
-                        <th class="align-middle">Подразделение</th>
+                        <th class="align-middle" style="width: 15%;">Подразделение</th>
                         <th class="align-middle">По списку</th>
                         <th class="align-middle">Налицо</th>
                         <th class="align-middle">Наряд</th>
@@ -169,38 +164,45 @@ require_once "includes/header.php";
                         <th class="align-middle">Отпуск</th>
                         <th class="align-middle">Болен</th>
                         <th class="align-middle">Иное</th>
-                        <th class="align-middle">Дата обновления</th>
+                        <th class="align-middle" style="width: 25%;">Примечание</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php
                     if ($summary_result && mysqli_num_rows($summary_result) > 0) {
                         while ($row = mysqli_fetch_assoc($summary_result)) {
-                            $total = $row['nalico'] + $row['naryad'] + $row['komandirovka'] + $row['otpusk'] + $row['bolen'] + $row['inoe'];
-                            // Суммируем для итоговой строки
+                            $nalico = $row['nalico'] ?? 0;
+                            $naryad = $row['naryad'] ?? 0;
+                            $komandirovka = $row['komandirovka'] ?? 0;
+                            $otpusk = $row['otpusk'] ?? 0;
+                            $bolen = $row['bolen'] ?? 0;
+                            $inoe = $row['inoe'] ?? 0;
+                            $total = $nalico + $naryad + $komandirovka + $otpusk + $bolen + $inoe;
+
                             $grand_total['total'] += $total;
-                            $grand_total['nalico'] += $row['nalico'];
-                            $grand_total['naryad'] += $row['naryad'];
-                            $grand_total['komandirovka'] += $row['komandirovka'];
-                            $grand_total['otpusk'] += $row['otpusk'];
-                            $grand_total['bolen'] += $row['bolen'];
-                            $grand_total['inoe'] += $row['inoe'];
+                            $grand_total['nalico'] += $nalico;
+                            $grand_total['naryad'] += $naryad;
+                            $grand_total['komandirovka'] += $komandirovka;
+                            $grand_total['otpusk'] += $otpusk;
+                            $grand_total['bolen'] += $bolen;
+                            $grand_total['inoe'] += $inoe;
                             ?>
                             <tr>
-                                <td class="text-left"><?php echo htmlspecialchars($row['department_name']); ?></td>
-                                <td><strong><?php echo $total; ?></strong></td>
-                                <td><?php echo $row['nalico'] ?? 0; ?></td>
-                                <td><?php echo $row['naryad'] ?? 0; ?></td>
-                                <td><?php echo $row['komandirovka'] ?? 0; ?></td>
-                                <td><?php echo $row['otpusk'] ?? 0; ?></td>
-                                <td><?php echo $row['bolen'] ?? 0; ?></td>
-                                <td><?php echo $row['inoe'] ?? 0; ?></td>
-                                <td><?php echo $row['report_date'] ? date('d.m.Y', strtotime($row['report_date'])) : 'Нет данных'; ?></td>
+                                <td class="text-left align-middle"><?php echo htmlspecialchars($row['department_name']); ?></td>
+                                <td class="align-middle"><strong><?php echo $total; ?></strong></td>
+                                <td class="align-middle"><?php echo $nalico; ?></td>
+                                <td class="align-middle"><?php echo $naryad; ?></td>
+                                <td class="align-middle"><?php echo $komandirovka; ?></td>
+                                <td class="align-middle"><?php echo $otpusk; ?></td>
+                                <td class="align-middle"><?php echo $bolen; ?></td>
+                                <td class="align-middle"><?php echo $inoe; ?></td>
+                                <td class="text-left align-middle" style="white-space: pre-wrap;"><?php echo htmlspecialchars($row['примечание'] ?? ''); ?></td>
                             </tr>
                         <?php }
                     } else {
-                        echo "<tr><td colspan='9' class='text-center'>Нет данных для отображения. Добавьте отделы в панели администратора.</td></tr>";
+                        echo "<tr><td colspan='9' class='text-center'>Данные за выбранную дату отсутствуют.</td></tr>";
                     }
+                    mysqli_stmt_close($stmt_summary);
                     ?>
                 </tbody>
                 <tfoot class="bg-secondary text-white font-weight-bold">
