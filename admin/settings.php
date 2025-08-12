@@ -62,17 +62,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if (move_uploaded_file($_FILES["app_logo"]["tmp_name"], $target_file)) {
                     $logo_path = "assets/logo." . $file_extension;
                     $sql = "REPLACE INTO settings (setting_key, setting_value) VALUES ('app_logo', ?)";
-                if ($stmt = mysqli_prepare($link, $sql)) {
-                    mysqli_stmt_bind_param($stmt, "s", $logo_path);
-                    mysqli_stmt_execute($stmt);
-                    $success .= "Логотип успешно загружен. ";
-                    log_event($link, $_SESSION['id'], "Загружен новый логотип.");
+                    if ($stmt = mysqli_prepare($link, $sql)) {
+                        mysqli_stmt_bind_param($stmt, "s", $logo_path);
+                        mysqli_stmt_execute($stmt);
+                        mysqli_stmt_close($stmt);
+                        $success .= "Логотип успешно загружен. ";
+                        log_event($link, $_SESSION['id'], "Загружен новый логотип.");
+                    }
+                } else {
+                    $error .= "Ошибка при загрузке файла. ";
                 }
             } else {
-                $error .= "Ошибка при загрузке файла. ";
+                $error .= "Недопустимый тип файла. Разрешены только JPG, PNG, GIF, SVG. ";
             }
-        } else {
-            $error .= "Недопустимый тип файла. Разрешены только JPG, PNG, GIF, SVG. ";
         }
     }
 }
