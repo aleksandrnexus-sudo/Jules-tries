@@ -34,7 +34,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Загрузка логотипа
     if (isset($_FILES["app_logo"]) && $_FILES["app_logo"]["error"] == 0) {
-        $target_dir = "../assets/";
+        $target_dir = dirname(__DIR__) . "/assets/";
         // Создаем уникальное имя файла, чтобы избежать кеширования
         $file_extension = strtolower(pathinfo($_FILES["app_logo"]["name"], PATHINFO_EXTENSION));
         $target_file = $target_dir . "logo." . $file_extension;
