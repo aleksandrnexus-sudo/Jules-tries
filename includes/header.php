@@ -34,9 +34,23 @@ $color_scheme = $app_settings['color_scheme'] ?? 'default';
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
     <?php
     // Подключаем файл CSS для цветовой схемы
-    $scheme_css_path = "css/schemes/{$color_scheme}.css";
-    if ($color_scheme !== 'default' && file_exists($scheme_css_path)) {
-        echo '<link rel="stylesheet" href="' . $scheme_css_path . '?v=' . time() . '">';
+    if ($color_scheme === 'custom') {
+        $custom_colors = json_decode($app_settings['custom_colors'] ?? '{}', true);
+        $navbar_bg = $custom_colors['navbar_bg'] ?? '#003366';
+        $navbar_link_color = $custom_colors['navbar_link_color'] ?? '#ffffff';
+        $btn_primary_bg = $custom_colors['btn_primary_bg'] ?? '#004080';
+
+        echo "<style>
+            .navbar.bg-primary { background-color: {$navbar_bg} !important; }
+            .navbar.bg-primary .nav-link, .navbar.bg-primary .navbar-brand, .navbar.bg-primary .navbar-text, .navbar.bg-primary .btn-outline-light { color: {$navbar_link_color} !important; border-color: {$navbar_link_color} !important; }
+            .btn-primary { background-color: {$btn_primary_bg}; border-color: {$btn_primary_bg}; }
+        </style>";
+
+    } else {
+        $scheme_css_path = "css/schemes/{$color_scheme}.css";
+        if (file_exists($scheme_css_path)) {
+            echo '<link rel="stylesheet" href="' . $scheme_css_path . '?v=' . time() . '">';
+        }
     }
     ?>
     <style>

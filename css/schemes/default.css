@@ -1,0 +1,15 @@
+/* Default (Темно-синий) Theme */
+.navbar.bg-primary, .footer.bg-primary {
+    background-color: #003366 !important;
+}
+.bg-secondary {
+    background-color: #5a6268 !important;
+}
+.btn-primary {
+    background-color: #004080;
+    border-color: #004080;
+}
+.btn-primary:hover {
+    background-color: #003366;
+    border-color: #00264d;
+}
