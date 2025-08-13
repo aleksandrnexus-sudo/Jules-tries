@@ -1,8 +1,8 @@
 </div> <!-- /container -->
 
-<footer class="footer mt-auto py-3 bg-light">
+<footer class="footer mt-auto py-3 bg-light fixed-bottom">
     <div class="container text-center">
-        <span class="text-muted">© <?php echo date("Y"); ?> Система учета статуса сотрудников</span>
+        <span class="text-muted">© <?php echo date("Y"); ?> <?php echo htmlspecialchars($app_title ?? 'Staff Status Tracker'); ?></span>
     </div>
 </footer>
 

@@ -1,31 +1,34 @@
 <?php
 /**
- * Записывает событие в лог
+ * Centralized function to log events to the database.
  *
- * @param mysqli $link Соединение с БД
- * @param int|null $user_id ID пользователя (может быть null для системных событий)
- * @param string $action Описание действия
+ * This function is designed to be included and used wherever an action needs to be logged.
+ * It relies on the global $pdo object from config.php and the $_SESSION['username'].
+ *
+ * @param string $action The description of the action to be logged.
  */
-function log_event($link, $user_id, $action) {
-    // Проверяем, что соединение с базой данных все еще активно
-    if ($link->ping()) {
-        $sql = "INSERT INTO logs (user_id, action) VALUES (?, ?)";
+function log_event($action) {
+    // Access the global PDO object and session username
+    global $pdo;
+    $username = $_SESSION['username'] ?? 'system';
 
-        if ($stmt = mysqli_prepare($link, $sql)) {
-            mysqli_stmt_bind_param($stmt, "is", $param_user_id, $param_action);
+    // Ensure PDO object is available
+    if (!isset($pdo)) {
+        error_log("log_event failed: PDO object is not available.");
+        return;
+    }
 
-            $param_user_id = $user_id;
-            $param_action = $action;
-
-            mysqli_stmt_execute($stmt);
-            mysqli_stmt_close($stmt);
-        } else {
-            // Ошибка при подготовке запроса. Можно записать в системный лог.
-            error_log("Failed to prepare statement for log_event: " . mysqli_error($link));
-        }
-    } else {
-        // Соединение потеряно.
-        error_log("Database connection lost in log_event.");
+    try {
+        $sql = "INSERT INTO logs (username, action) VALUES (:username, :action)";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            'username' => $username,
+            'action' => $action
+        ]);
+    } catch (PDOException $e) {
+        // If logging fails, we don't want to break the user's current action.
+        // Instead, we log the error to the server's error log for the administrator to review.
+        error_log("Failed to log event '{$action}' for user '{$username}': " . $e->getMessage());
     }
 }
 ?>
