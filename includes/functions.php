@@ -1,20 +1,21 @@
 <?php
 /**
- * Centralized function to log events to the database.
+ * Централизованная функция для записи событий в базу данных.
  *
- * This function is designed to be included and used wherever an action needs to be logged.
- * It relies on the global $pdo object from config.php and the $_SESSION['username'].
+ * Эта функция предназначена для подключения и использования в любом месте,
+ * где требуется логирование действий. Она зависит от глобального объекта $pdo
+ * из config.php и имени пользователя из сессии $_SESSION['username'].
  *
- * @param string $action The description of the action to be logged.
+ * @param string $action Описание действия для записи в лог.
  */
 function log_event($action) {
-    // Access the global PDO object and session username
+    // Получаем доступ к глобальному объекту PDO и имени пользователя из сессии.
     global $pdo;
-    $username = $_SESSION['username'] ?? 'system';
+    $username = $_SESSION['username'] ?? 'system'; // Если пользователь не определен, указываем 'system'.
 
-    // Ensure PDO object is available
+    // Убедимся, что объект PDO доступен.
     if (!isset($pdo)) {
-        error_log("log_event failed: PDO object is not available.");
+        error_log("Функция log_event не выполнена: объект PDO недоступен.");
         return;
     }
 
@@ -26,9 +27,9 @@ function log_event($action) {
             'action' => $action
         ]);
     } catch (PDOException $e) {
-        // If logging fails, we don't want to break the user's current action.
-        // Instead, we log the error to the server's error log for the administrator to review.
-        error_log("Failed to log event '{$action}' for user '{$username}': " . $e->getMessage());
+        // Если логирование не удалось, мы не прерываем основное действие пользователя.
+        // Вместо этого, мы записываем ошибку в лог ошибок сервера для последующего анализа.
+        error_log("Не удалось записать событие '{$action}' для пользователя '{$username}': " . $e->getMessage());
     }
 }
 ?>

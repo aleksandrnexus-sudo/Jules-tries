@@ -1,23 +1,24 @@
 <?php
-// Make sure this script is not run on a production server
-if (getenv('APP_ENV') === 'production') {
-    die("This script cannot be run in a production environment.");
-}
-
+// Устанавливаем заголовок, чтобы браузер правильно отображал кириллицу.
 header('Content-Type: text/plain; charset=utf-8');
 
+// Подключаем файл конфигурации для доступа к $pdo.
 require_once 'config.php';
 
 try {
-    echo "Starting database installation for PostgreSQL...\n\n";
+    echo "Запуск установки базы данных для PostgreSQL...\n\n";
 
-    // SQL statements
+    // Единый блок SQL-команд для создания всех таблиц.
+    // Используется IF NOT EXISTS для безопасности, чтобы не удалить существующие таблицы.
     $sql = "
+        -- Таблица для хранения отделов
         CREATE TABLE IF NOT EXISTS departments (
             id SERIAL PRIMARY KEY,
             name VARCHAR(255) UNIQUE NOT NULL
         );
 
+        -- Таблица для хранения пользователей и их прав
+        -- Пароли не хранятся, так как используется внешняя аутентификация (Kerberos)
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             username VARCHAR(100) UNIQUE NOT NULL,
@@ -25,6 +26,7 @@ try {
             department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL
         );
 
+        -- Таблица для хранения ежедневных статусов по отделам
         CREATE TABLE IF NOT EXISTS statuses (
             id SERIAL PRIMARY KEY,
             department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
@@ -36,9 +38,10 @@ try {
             sick INTEGER NOT NULL DEFAULT 0,
             other INTEGER NOT NULL DEFAULT 0,
             notes TEXT,
-            UNIQUE (department_id, report_date)
+            UNIQUE (department_id, report_date) -- Гарантирует только одну запись на отдел в день
         );
 
+        -- Таблица для логирования действий пользователей
         CREATE TABLE IF NOT EXISTS logs (
             id SERIAL PRIMARY KEY,
             log_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -46,34 +49,36 @@ try {
             action TEXT NOT NULL
         );
 
+        -- Таблица для хранения настроек приложения
         CREATE TABLE IF NOT EXISTS settings (
             setting_key VARCHAR(50) PRIMARY KEY,
             setting_value TEXT
         );
     ";
 
-    // Execute the table creation
+    // Выполняем создание таблиц
     $pdo->exec($sql);
-    echo "SUCCESS: All tables created successfully or already exist.\n";
+    echo "УСПЕШНО: Все таблицы были созданы или уже существуют.\n";
 
-    // --- Insert Default Data ---
+    // --- Вставка данных по умолчанию ---
 
-    // Add default admins
-    echo "\nProcessing default administrators...\n";
+    // Добавляем администраторов по умолчанию
+    echo "\nОбработка администраторов по умолчанию...\n";
     $admins = ['as-biserov', 'as-karpov'];
+    // ON CONFLICT DO NOTHING предотвращает ошибку, если пользователь уже существует.
     $stmt_admins = $pdo->prepare("INSERT INTO users (username, role) VALUES (:username, 'admin') ON CONFLICT (username) DO NOTHING");
 
     foreach ($admins as $admin) {
         $stmt_admins->execute(['username' => $admin]);
         if ($stmt_admins->rowCount() > 0) {
-            echo "  - Admin '{$admin}' created.\n";
+            echo "  - Администратор '{$admin}' создан.\n";
         } else {
-            echo "  - Admin '{$admin}' already exists.\n";
+            echo "  - Администратор '{$admin}' уже существует.\n";
         }
     }
 
-    // Add default settings
-    echo "\nProcessing default settings...\n";
+    // Добавляем настройки по умолчанию
+    echo "\nОбработка настроек по умолчанию...\n";
     $settings = [
         'app_title' => 'Учет Статуса Сотрудников',
         'app_logo' => '',
@@ -85,17 +90,17 @@ try {
     foreach ($settings as $key => $value) {
         $stmt_settings->execute(['key' => $key, 'value' => $value]);
          if ($stmt_settings->rowCount() > 0) {
-            echo "  - Setting '{$key}' created.\n";
+            echo "  - Настройка '{$key}' создана.\n";
         } else {
-            echo "  - Setting '{$key}' already exists.\n";
+            echo "  - Настройка '{$key}' уже существует.\n";
         }
     }
 
     echo "\n--------------------------------------------------\n";
-    echo "SUCCESS: Database installation complete.\n";
-    echo "IMPORTANT: Please delete this file (install.php) from your server for security reasons.\n";
+    echo "УСПЕШНО: Установка базы данных завершена.\n";
+    echo "ВАЖНО: Пожалуйста, удалите этот файл (install.php) с вашего сервера в целях безопасности.\n";
 
 } catch (PDOException $e) {
-    die("DATABASE INSTALLATION FAILED: " . $e->getMessage());
+    die("ОШИБКА УСТАНОВКИ БАЗЫ ДАННЫХ: " . $e->getMessage());
 }
 ?>

@@ -1,56 +1,57 @@
 <?php
-// Start the session if not already started
+/**
+ * Центральный файл для аутентификации и авторизации.
+ * Этот скрипт должен подключаться в начале каждой страницы, требующей доступа.
+ */
+
+// Запускаем сессию, если она еще не была запущена.
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// --- Kerberos Authentication & User Parsing ---
+// --- Аутентификация через Kerberos и обработка имени пользователя ---
 
-// For development/testing purposes, if PHP_AUTH_USER is not set by the server,
-// you can simulate it by uncommenting one of the lines below.
-// In a real production environment with Kerberos, this 'if' block can be removed.
+// Блок для разработки и тестирования. В реальной среде с Kerberos он не нужен.
+// Он симулирует переменную $_SERVER['PHP_AUTH_USER'], которую должен предоставлять веб-сервер.
 if (!isset($_SERVER['PHP_AUTH_USER'])) {
-    // To test as admin:
+    // Чтобы тестировать под админом:
     // $_SERVER['PHP_AUTH_USER'] = 'as-biserov@domain.com';
 
-    // To test as a regular user (assuming this user will be added to the DB with department rights):
+    // Чтобы тестировать под обычным пользователем:
     // $_SERVER['PHP_AUTH_USER'] = 'testuser@domain.com';
 
-    // To test as an unauthorized user:
-    // $_SERVER['PHP_AUTH_USER'] = 'unknown@domain.com';
-
-    // If still not set, default to a known admin for development.
+    // По умолчанию для разработки используется один из администраторов.
     if (!isset($_SERVER['PHP_AUTH_USER'])) {
         $_SERVER['PHP_AUTH_USER'] = 'as-karpov@domain.com';
     }
 }
 
-// Get the full username (e.g., login@domain) provided by the web server
+// Получаем полное имя пользователя (например, login@domain), переданное веб-сервером.
 $kerberos_user = $_SERVER['PHP_AUTH_USER'] ?? null;
 
+// Если имя пользователя отсутствует, прекращаем выполнение.
+// В идеале, веб-сервер должен блокировать доступ еще до выполнения скрипта.
 if (empty($kerberos_user)) {
-    // This case should ideally be handled by the web server configuration (e.g., Apache's AuthType Kerberos),
-    // which shouldn't allow access to the script without authentication. This is a fallback.
     header('HTTP/1.1 401 Unauthorized');
-    die('401 Unauthorized: Kerberos authentication is required to access this application.');
+    die('401 Unauthorized: Требуется аутентификация Kerberos для доступа к приложению.');
 }
 
-// Parse the username to get the part before the '@' symbol
+// Извлекаем логин из полного имени (часть до символа '@').
 $username_parts = explode('@', $kerberos_user);
-$username = strtolower($username_parts[0]); // Use lowercase for consistency
+$username = strtolower($username_parts[0]); // Приводим к нижнему регистру для единообразия.
 
-// --- Authorization & Session Management ---
+// --- Авторизация и управление сессией ---
 
-// Check if a session is already active and if the username matches.
-// This avoids hitting the database on every single page load for an already-authorized user.
+// Проверяем, есть ли уже активная сессия для этого пользователя.
+// Это позволяет избежать запросов к БД при каждой загрузке страницы.
 if (isset($_SESSION['loggedin']) && $_SESSION['loggedin'] === true && isset($_SESSION['username']) && $_SESSION['username'] === $username) {
-    // The user is already authenticated and authorized in this session.
+    // Пользователь уже авторизован в текущей сессии.
     return;
 }
 
-// If there's no active session for this user, we must query the database to get their role.
-// This code will run only once per session.
-require_once __DIR__ . '/../config.php'; // Ensure the $pdo object is available
+// Если активной сессии нет, делаем запрос к БД для получения роли и прав.
+// Этот код выполняется только один раз за сессию.
+require_once __DIR__ . '/../config.php'; // Подключаем $pdo
 
 try {
     $stmt = $pdo->prepare("SELECT username, role, department_id FROM users WHERE username = :username");
@@ -58,8 +59,8 @@ try {
     $user_data = $stmt->fetch();
 
     if ($user_data) {
-        // User is found in our database. Authorize them by creating a session.
-        session_regenerate_id(true); // Regenerate session ID to prevent session fixation attacks
+        // Пользователь найден в нашей БД. Авторизуем его, создав сессию.
+        session_regenerate_id(true); // Пересоздаем ID сессии для предотвращения атак фиксации сессии.
 
         $_SESSION['loggedin'] = true;
         $_SESSION['username'] = $user_data['username'];
@@ -67,18 +68,18 @@ try {
         $_SESSION['department_id'] = $user_data['department_id'];
 
     } else {
-        // The user is authenticated via Kerberos, but is not registered in our application's database.
-        // Therefore, they are not authorized to use the application.
-        session_destroy(); // Clean up any partial session
+        // Пользователь прошел аутентификацию Kerberos, но не зарегистрирован в нашем приложении.
+        // Следовательно, он не авторизован для использования системы.
+        session_destroy(); // Уничтожаем сессию.
         header('HTTP/1.1 403 Forbidden');
-        die('403 Forbidden: Your user account (' . htmlspecialchars($username) . ') is authenticated but not authorized to use this application. Please contact an administrator.');
+        die('403 Forbidden: Ваша учетная запись (' . htmlspecialchars($username) . ') аутентифицирована, но не имеет прав для доступа к этому приложению. Пожалуйста, свяжитесь с администратором.');
     }
 
 } catch (PDOException $e) {
-    // This would happen if the database is down or there's a query error.
+    // Обработка ошибок, если БД недоступна во время проверки авторизации.
     session_destroy();
     header('HTTP/1.1 500 Internal Server Error');
-    error_log("Authorization check failed: " . $e->getMessage()); // Log the actual error
-    die("A critical error occurred during the authorization check. Please try again later.");
+    error_log("Authorization check failed: " . $e->getMessage()); // Логируем ошибку на сервере.
+    die("Произошла критическая ошибка при проверке авторизации. Пожалуйста, попробуйте позже.");
 }
 ?>
