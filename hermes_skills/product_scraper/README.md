@@ -89,6 +89,52 @@ result = await scrape_product(
 «плавающими» антибот-проверками без смены IP: при `blocked`/таймауте скилл
 повторяет попытку в новой сессии (новый UA).
 
+### Маршрутизация через ваш российский IP (WireGuard)
+
+Чтобы выходить под вашим RU residential IP, скрапер можно гонять через WireGuard
+к вашему домашнему роутеру. В вашем конфиге `AllowedIPs = 0.0.0.0/0` (full-tunnel),
+поэтому поднимать его системно (`wg-quick up`) **опасно** — через тоннель уйдёт
+весь трафик хоста, включая управляющий канал агента Hermes. Решение —
+изолированный **network namespace**: через RU-IP идёт только процесс скрапера.
+
+**Шаги (нужен root на машине, где крутится скрапер):**
+
+```bash
+cd hermes_skills/product_scraper
+
+# 1. Конфиг с вашими ключами (НЕ коммитится — в .gitignore).
+cp wireguard/hermes-ru.conf.example wireguard/hermes-ru.conf
+#   впишите PrivateKey клиента и PublicKey роутера (остальное уже заполнено:
+#   Address 10.0.0.7/32, DNS 10.0.0.1, MTU 1200, Endpoint 92.248.252.204:51820)
+
+# 2. Поднять тоннель в namespace 'hermes_wg'.
+sudo ./scripts/wg_netns.sh up
+
+# 3. Убедиться, что выход реально через ваш RU-IP.
+sudo ./scripts/wg_netns.sh exec curl -s https://ifconfig.co/json
+
+# 4. Запустить скрапер ВНУТРИ тоннеля.
+sudo PYTHONPATH="$(git rev-parse --show-toplevel)" \
+  ./scripts/wg_netns.sh exec /opt/hermes/.venv/bin/python /opt/hermes/run_scrape.py
+
+# 5. Снять тоннель.
+sudo ./scripts/wg_netns.sh down
+```
+
+Внутри Python можно дополнительно проверить egress перед сбором:
+
+```python
+from hermes_skills.product_scraper import check_egress_ip, scrape_product
+info = await check_egress_ip()           # {"ip": "...", "country": "Russia"}
+assert info.get("country") == "Russia", f"Не RU IP: {info}"
+result = await scrape_product("Ozon: кофемашина delonghi")
+```
+
+> WireGuard-интерфейс создаётся в namespace, поэтому в `scrape_product` **прокси
+> не нужен** (`ScraperConfig.proxy` оставьте пустым) — маршрутизацию делает namespace.
+> Параметры скрипта переопределяются через env: `WG_CONF`, `WG_NS`, `WG_IF`,
+> `WG_ADDRESS`, `WG_DNS`, `WG_MTU`.
+
 ## Установка
 
 Скилл оформлен как namespace-пакет `hermes_skills.product_scraper`, поэтому

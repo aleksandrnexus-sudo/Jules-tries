@@ -1,6 +1,6 @@
 [project]
 name = "hermes-product-scraper"
-version = "0.2.0"
+version = "0.3.0"
 description = "Отказоустойчивый скилл извлечения данных о товарах для ИИ-агента Hermes"
 readme = "README.md"
 requires-python = ">=3.12"

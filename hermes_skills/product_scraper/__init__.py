@@ -14,17 +14,19 @@ from .llm_fallback import LLMExtractor
 from .schemas import ProductData, ScrapeStatus, SkillOutput
 from .scraper import (
     ProductScraperSkill,
+    check_egress_ip,
     prepare_session,
     scrape_product,
     scrape_product_sync,
 )
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "scrape_product",
     "scrape_product_sync",
     "prepare_session",
+    "check_egress_ip",
     "ProductScraperSkill",
     "ProductData",
     "SkillOutput",

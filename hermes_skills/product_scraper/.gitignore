@@ -5,3 +5,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 *.egg-info/
+
+# WireGuard: реальный конфиг с ключами не коммитим (только .example)
+wireguard/hermes-ru.conf
+wireguard/*.conf

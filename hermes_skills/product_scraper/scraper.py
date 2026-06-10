@@ -14,6 +14,7 @@ LLM-fallback. На каждом шаге проверяем капчу/блок�
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from urllib.parse import quote_plus, urljoin, urlparse
 
@@ -351,9 +352,31 @@ async def prepare_session(
     return False
 
 
+async def check_egress_ip(config: ScraperConfig | None = None) -> dict[str, str]:
+    """Под каким публичным IP/страной СКРАПЕР выходит в сеть.
+
+    Запускайте перед сбором, чтобы убедиться, что трафик идёт через ваш RU
+    residential IP (WireGuard-namespace), а не через датацентр. Возвращает
+    ``{"ip": "...", "country": "..."}`` (пустой dict, если сервис недоступен).
+    """
+    cfg = config or ScraperConfig()
+    async with StealthBrowser(cfg) as browser:
+        page = await browser.new_page()
+        resp = await page.goto("https://ifconfig.co/json", wait_until="domcontentloaded")
+        if resp is None:
+            return {}
+        try:
+            data = json.loads(await resp.text())
+        except (json.JSONDecodeError, ValueError):
+            logger.warning("check_egress_ip: не удалось разобрать ответ ifconfig.co")
+            return {}
+    return {"ip": str(data.get("ip", "")), "country": str(data.get("country", ""))}
+
+
 __all__ = [
     "ProductScraperSkill",
     "scrape_product",
     "scrape_product_sync",
     "prepare_session",
+    "check_egress_ip",
 ]
