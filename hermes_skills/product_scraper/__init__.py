@@ -12,13 +12,19 @@ from __future__ import annotations
 from .config import ScraperConfig
 from .llm_fallback import LLMExtractor
 from .schemas import ProductData, ScrapeStatus, SkillOutput
-from .scraper import ProductScraperSkill, scrape_product, scrape_product_sync
+from .scraper import (
+    ProductScraperSkill,
+    prepare_session,
+    scrape_product,
+    scrape_product_sync,
+)
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "scrape_product",
     "scrape_product_sync",
+    "prepare_session",
     "ProductScraperSkill",
     "ProductData",
     "SkillOutput",

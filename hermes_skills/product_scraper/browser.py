@@ -31,6 +31,13 @@ from .config import ScraperConfig
 
 logger = logging.getLogger("hermes.product_scraper.browser")
 
+# playwright-stealth — мягкая зависимость: если установлена, усиливаем маскировку
+# поверх нашего init-скрипта. Если нет — молча работаем без неё.
+try:  # pragma: no cover - зависит от окружения
+    from playwright_stealth import stealth_async as _stealth_async
+except Exception:  # noqa: BLE001
+    _stealth_async = None
+
 # JS, который выполняется ДО любого скрипта страницы (add_init_script).
 # Маскирует самые явные маркеры headless-Chromium. Это базовый набор; для
 # продакшена усильте его playwright-stealth.
@@ -98,46 +105,81 @@ class StealthBrowser:
         await self.close()
 
     async def start(self) -> None:
-        """Поднимаем Playwright, браузер и контекст с stealth-настройками."""
+        """Поднимаем Playwright и контекст с stealth-настройками.
+
+        Два режима:
+
+        * **persistent** (``config.user_data_dir`` задан) — постоянный профиль:
+          cookies/сессия/решённая капча сохраняются между запусками. Это ключ к
+          работе без прокси для редких запросов.
+        * **ephemeral** — обычный одноразовый контекст.
+        """
         self._pw = await async_playwright().start()
 
-        launch_kwargs: dict = {
-            "headless": self._config.headless,
-            # Эти флаги дополнительно снижают детектируемость автоматизации.
-            "args": [
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-            ],
+        # Общие флаги запуска: снижают детектируемость автоматизации.
+        launch_args = [
+            "--disable-blink-features=AutomationControlled",
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            *self._config.extra_launch_args,
+        ]
+        # Параметры контекста с правдоподобным fingerprint'ом.
+        context_kwargs: dict = {
+            "user_agent": self._user_agent,
+            "locale": self._config.locale,
+            "timezone_id": self._config.timezone_id,
+            "viewport": {"width": 1920, "height": 1080},
+            "extra_http_headers": self._config.extra_headers,
         }
-        # Точка интеграции прокси (ротация прокси выполняется агентом Hermes
-        # снаружи — он пересоздаёт сессию с новым значением config.proxy).
+        # Точка интеграции прокси (ротация выполняется агентом снаружи).
         if self._config.proxy:
-            launch_kwargs["proxy"] = {"server": self._config.proxy}
+            context_kwargs["proxy"] = {"server": self._config.proxy}
 
-        self._browser = await self._pw.chromium.launch(**launch_kwargs)
+        if self._config.user_data_dir:
+            # Persistent-контекст сам управляет браузером (отдельного Browser нет).
+            self._context = await self._pw.chromium.launch_persistent_context(
+                self._config.user_data_dir,
+                headless=self._config.headless,
+                slow_mo=self._config.slow_mo_ms,
+                args=launch_args,
+                **context_kwargs,
+            )
+        else:
+            self._browser = await self._pw.chromium.launch(
+                headless=self._config.headless,
+                slow_mo=self._config.slow_mo_ms,
+                args=launch_args,
+                **({"proxy": context_kwargs.pop("proxy")} if "proxy" in context_kwargs else {}),
+            )
+            self._context = await self._browser.new_context(**context_kwargs)
 
-        # Контекст с правдоподобным fingerprint'ом: UA, локаль, таймзона,
-        # вьюпорт и заголовки реального пользователя.
-        self._context = await self._browser.new_context(
-            user_agent=self._user_agent,
-            locale=self._config.locale,
-            timezone_id=self._config.timezone_id,
-            viewport={"width": 1920, "height": 1080},
-            extra_http_headers=self._config.extra_headers,
-        )
         self._context.set_default_navigation_timeout(self._config.navigation_timeout_ms)
         self._context.set_default_timeout(self._config.selector_timeout_ms)
-        # Инъекция stealth-скрипта во все страницы контекста.
+        # Наш базовый init-скрипт во все страницы контекста.
         await self._context.add_init_script(_STEALTH_INIT_JS)
-        logger.debug("Stealth-контекст поднят (UA=%s)", self._user_agent)
+        logger.debug(
+            "Контекст поднят (UA=%s, persistent=%s, stealth=%s)",
+            self._user_agent,
+            bool(self._config.user_data_dir),
+            self._config.use_stealth and _stealth_async is not None,
+        )
+
+    async def _apply_stealth(self, page: Page) -> None:
+        """Накатываем playwright-stealth на страницу, если пакет доступен."""
+        if self._config.use_stealth and _stealth_async is not None:
+            try:
+                await _stealth_async(page)
+            except Exception:  # noqa: BLE001 — stealth не критичен для работы
+                logger.debug("playwright-stealth не применился", exc_info=True)
 
     async def new_page(self) -> Page:
         if self._context is None:
             raise RuntimeError(
                 "StealthBrowser не запущен: вызовите start() / используйте async with"
             )
-        return await self._context.new_page()
+        page = await self._context.new_page()
+        await self._apply_stealth(page)
+        return page
 
     async def close(self) -> None:
         """Аккуратно освобождаем ресурсы в обратном порядке."""

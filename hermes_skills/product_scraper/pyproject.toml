@@ -1,6 +1,6 @@
 [project]
 name = "hermes-product-scraper"
-version = "0.1.0"
+version = "0.2.0"
 description = "Отказоустойчивый скилл извлечения данных о товарах для ИИ-агента Hermes"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -11,6 +11,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Усиление анти-детекта (мягкая зависимость; код работает и без неё).
+stealth = [
+    "playwright-stealth>=1.0.6",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",

@@ -166,6 +166,21 @@ class ScraperConfig:
     user_agents: list[str] = field(default_factory=lambda: list(USER_AGENTS))
     extra_headers: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_HEADERS))
 
+    # --- Режим "без прокси" для редких запросов ----------------------------
+    # Постоянный профиль браузера (cookies/сессия/решённая капча сохраняются
+    # между запусками). Ключ к работе без прокси: один раз вручную пройти
+    # антибот в headful — дальше сессия переиспользуется.
+    user_data_dir: str | None = None
+    # Применять playwright-stealth, если пакет установлен (мягкая зависимость).
+    use_stealth: bool = True
+    # Замедление действий (мс) — имитация «человеческого» темпа. 0 = выкл.
+    slow_mo_ms: int = 0
+    # Ретраи при временной блокировке/таймауте (экспоненциальный backoff).
+    max_retries: int = 2
+    retry_backoff_s: float = 2.0
+    # Доп. аргументы запуска Chromium (для тонкой настройки агентом).
+    extra_launch_args: list[str] = field(default_factory=list)
+
 
 def normalize_host(host: str) -> str:
     """Приводим хост к ключу реестра: lowercase, без ``www.``."""

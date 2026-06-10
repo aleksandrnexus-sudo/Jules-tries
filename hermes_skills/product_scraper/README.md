@@ -52,6 +52,43 @@
 > `playwright-stealth`, внешние Scraping API (Bright Data, Scrapeit) и ротация
 > прокси через `ScraperConfig.proxy`.
 
+### Работа БЕЗ прокси (редкие запросы)
+
+HTTP 403 от Ozon/WB на сервере — это **блокировка по IP** (датацентровые IP
+режутся мгновенно), а не баг скилла. Без покупки прокси для редких запросов
+решают три фактора:
+
+1. **Residential IP.** Запускайте скилл с домашнего/офисного IP (ваш ноут,
+   домашний сервер), а не с VPS/датацентра. Это решающий фактор — никакой
+   stealth не спасёт датацентровый IP против Ozon/WB.
+2. **Постоянный профиль** (`ScraperConfig.user_data_dir`). Cookies, сессия и
+   решённая капча сохраняются между запусками и переиспользуются.
+3. **`playwright-stealth`** (опционально: `pip install playwright-stealth`).
+   Если пакет установлен — подключается автоматически; если нет — скилл
+   работает на встроенном init-скрипте.
+
+Одноразовый «прогрев» сессии (вручную пройти антибот, дальше сессия живёт):
+
+```python
+from hermes_skills.product_scraper import prepare_session, scrape_product, ScraperConfig
+
+PROFILE = "/opt/hermes/.cache/product_scraper_profile"
+
+# 1) ОДИН раз, headful: открыть площадку и пройти капчу руками.
+cfg = ScraperConfig(user_data_dir=PROFILE, headless=False)
+await prepare_session("https://www.ozon.ru/", cfg, wait_timeout_s=180)
+
+# 2) Дальше — обычные запросы с тем же профилем (можно headless).
+result = await scrape_product(
+    "Ozon: кофемашина delonghi",
+    config=ScraperConfig(user_data_dir=PROFILE, headless=True, max_retries=2),
+)
+```
+
+Ретраи (`max_retries`, `retry_backoff_s`) с экспоненциальным backoff помогают с
+«плавающими» антибот-проверками без смены IP: при `blocked`/таймауте скилл
+повторяет попытку в новой сессии (новый UA).
+
 ## Установка
 
 Скилл оформлен как namespace-пакет `hermes_skills.product_scraper`, поэтому
@@ -89,6 +126,22 @@ asyncio.run(main())
 
 `my_async_llm` — любая `async def (prompt: str) -> str`, возвращающая ответ
 модели (желательно чистый JSON).
+
+## Поля результата (`ProductData`)
+
+Модель использует именно эти имена полей (важно при чтении `result.data`):
+
+| Поле | Значение |
+|---|---|
+| `result.data.title` | наименование товара (**не** `name`) |
+| `result.data.price` | цена (float) |
+| `result.data.currency` | валюта (по умолчанию `RUB`) |
+| `result.data.attributes` | характеристики (dict) |
+| `result.data.description` | описание |
+| `result.data.rating` | рейтинг 0.0–5.0 |
+| `result.data.reviews_count` | число отзывов (**не** `review_count`) |
+| `result.data.is_available` | статус наличия (bool) |
+| `result.data.source_url` | ссылка на источник |
 
 ## Тесты
 

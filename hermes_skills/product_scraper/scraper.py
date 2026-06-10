@@ -88,11 +88,48 @@ class ProductScraperSkill:
     # --- Публичный интерфейс -------------------------------------------------
 
     async def scrape(self, query_or_url: str) -> SkillOutput:
-        """Главная точка входа. Сама выбирает Сценарий А или Б по входу."""
+        """Главная точка входа с ретраями.
+
+        При временной блокировке/таймауте делаем до ``config.max_retries``
+        повторов с экспоненциальным backoff (новая сессия = новый UA). Это
+        помогает с «плавающими» антибот-проверками без смены прокси. Если все
+        попытки заблокированы — отдаём последний ``blocked``, чтобы агент решил
+        о смене сессии/IP.
+        """
         query_or_url = (query_or_url or "").strip()
         if not query_or_url:
             return SkillOutput.failed("Пустой запрос")
 
+        # Валидируем вход ОДИН раз — ошибки формата не ретраим (это не сеть).
+        if not _looks_like_url(query_or_url) and _parse_search_query(query_or_url) is None:
+            return SkillOutput.failed(
+                "Не распознан маркетплейс. Используйте формат "
+                "'Ozon: запрос' / 'WB: запрос' / 'Yandex Market: запрос' "
+                "или передайте прямой URL карточки."
+            )
+
+        last: SkillOutput | None = None
+        attempts = max(1, self._config.max_retries + 1)
+        for attempt in range(attempts):
+            result = await self._scrape_once(query_or_url)
+            # Ретраим только сетевые проблемы: блокировку и ошибки навигации.
+            if result.success or result.status.value not in {"blocked", "error"}:
+                return result
+            last = result
+            if attempt < attempts - 1:
+                delay = self._config.retry_backoff_s * (2**attempt)
+                logger.info(
+                    "Попытка %d/%d дала status=%s; повтор через %.1fs",
+                    attempt + 1,
+                    attempts,
+                    result.status.value,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+        return last or SkillOutput.failed("Не удалось выполнить запрос", url=query_or_url)
+
+    async def _scrape_once(self, query_or_url: str) -> SkillOutput:
+        """Одна попытка: поднять сессию, выбрать сценарий, извлечь."""
         try:
             async with StealthBrowser(self._config) as browser:
                 page = await browser.new_page()
@@ -276,4 +313,47 @@ def scrape_product_sync(
     return asyncio.run(scrape_product(query_or_url, config=config, llm=llm))
 
 
-__all__ = ["ProductScraperSkill", "scrape_product", "scrape_product_sync"]
+async def prepare_session(
+    warmup_url: str,
+    config: ScraperConfig,
+    *,
+    wait_timeout_s: float = 180.0,
+    poll_s: float = 3.0,
+) -> bool:
+    """«Прогрев» постоянного профиля для работы БЕЗ прокси (one-time).
+
+    Открывает площадку в headful + persistent-профиле и ждёт, пока со страницы
+    исчезнут маркеры блокировки/капчи (т.е. пока вы решите капчу руками).
+    Cookies/сессия сохраняются в ``config.user_data_dir`` и переиспользуются
+    последующими вызовами ``scrape_product`` — это и позволяет редким запросам
+    проходить без прокси.
+
+    Возвращает ``True``, если блокировка снята до таймаута.
+    """
+    if not config.user_data_dir:
+        raise ValueError(
+            "prepare_session требует config.user_data_dir — иначе сессию негде сохранить"
+        )
+    if config.headless:
+        logger.warning("Рекомендуется headless=False, чтобы вручную пройти капчу")
+
+    loop = asyncio.get_event_loop()
+    deadline = loop.time() + wait_timeout_s
+    async with StealthBrowser(config) as browser:
+        page = await browser.new_page()
+        await page.goto(warmup_url, wait_until="domcontentloaded")
+        while loop.time() < deadline:
+            if detect_block(await page.content()) is None:
+                logger.info("Блокировка снята — сессия прогрета")
+                return True
+            await asyncio.sleep(poll_s)
+    logger.warning("prepare_session: таймаут ожидания снятия блокировки")
+    return False
+
+
+__all__ = [
+    "ProductScraperSkill",
+    "scrape_product",
+    "scrape_product_sync",
+    "prepare_session",
+]
