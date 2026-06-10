@@ -42,9 +42,14 @@ class _FakePage:
     def __init__(self, pages: dict[str, tuple[str, int]]) -> None:
         self._pages = pages  # url -> (html, http_status)
         self._current = ""
+        self.visited: list[str] = []
 
     async def goto(self, url: str, **_: object) -> _FakeResponse:
-        html, status = self._pages[url]
+        self.visited.append(url)
+        # Незарегистрированные URL (напр. homepage-прогрев) отдают пустую
+        # страницу со статусом 200 — как реальный браузер, который просто
+        # открыл главную ради antibot-cookies.
+        html, status = self._pages.get(url, ("<html><body></body></html>", 200))
         self._current = html
         return _FakeResponse(status)
 
@@ -110,6 +115,21 @@ async def test_scenario_b_search_to_card(monkeypatch):
     assert result.data is not None
     assert result.data.title == "Тестовый товар"
     assert result.url == product_url
+    # Прогрев antibot-cookies: homepage площадки открыт ДО страницы поиска.
+    assert page.visited[0] == "https://www.wildberries.ru/"
+    assert page.visited.index("https://www.wildberries.ru/") < page.visited.index(search_url)
+
+
+@pytest.mark.asyncio
+async def test_warmup_disabled_skips_homepage(monkeypatch):
+    url = "https://www.ozon.ru/product/test-1/"
+    page = _FakePage({url: (PRODUCT_HTML, 200)})
+    _patch_browser(monkeypatch, page)
+
+    result = await ProductScraperSkill(ScraperConfig(warmup_origin=False)).scrape(url)
+    assert result.success is True
+    # Без прогрева заходим только на целевой URL, homepage не трогаем.
+    assert page.visited == [url]
 
 
 # Без ретраев — чтобы тесты блокировки не ждали backoff.

@@ -30,6 +30,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WG_NS="${WG_NS:-hermes_wg}"
 WG_IF="${WG_IF:-wg-ru}"
 WG_CONF="${WG_CONF:-${SCRIPT_DIR}/../wireguard/hermes-ru.conf}"
+
+# Читаем параметр из [Interface] конфига (первое вхождение KEY = VALUE).
+conf_value() {
+  [[ -f "${WG_CONF}" ]] || return 0
+  sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*(.+)$/\1/p" "${WG_CONF}" | head -n1
+}
+
+# Значения берём из конфига, с возможностью переопределить через env.
+WG_ADDRESS="${WG_ADDRESS:-$(conf_value Address)}"
+WG_DNS="${WG_DNS:-$(conf_value DNS)}"
+WG_MTU="${WG_MTU:-$(conf_value MTU)}"
 WG_ADDRESS="${WG_ADDRESS:-10.0.0.7/32}"
 WG_DNS="${WG_DNS:-10.0.0.1}"
 WG_MTU="${WG_MTU:-1200}"
@@ -69,8 +80,15 @@ up() {
   ip netns exec "${WG_NS}" ip route add default dev "${WG_IF}"
 
   # 5. DNS внутри namespace (ip netns exec автоматически берёт /etc/netns/<ns>/resolv.conf).
+  #    WG_DNS может содержать несколько серверов через запятую/пробел
+  #    (напр. "1.1.1.1, 1.0.0.1") — пишем КАЖДЫЙ отдельной строкой nameserver,
+  #    иначе resolver получит невалидную запись "nameserver 1.1.1.1, 1.0.0.1".
   mkdir -p "/etc/netns/${WG_NS}"
-  echo "nameserver ${WG_DNS}" > "/etc/netns/${WG_NS}/resolv.conf"
+  : > "/etc/netns/${WG_NS}/resolv.conf"
+  local dns
+  for dns in ${WG_DNS//,/ }; do
+    [[ -n "${dns}" ]] && echo "nameserver ${dns}" >> "/etc/netns/${WG_NS}/resolv.conf"
+  done
 
   echo "WireGuard поднят в namespace '${WG_NS}' (интерфейс ${WG_IF})."
   echo "Проверка: sudo ./wg_netns.sh exec curl -s https://ifconfig.co/json"

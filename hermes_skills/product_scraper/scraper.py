@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import random
 from urllib.parse import quote_plus, urljoin, urlparse
 
 from playwright.async_api import Error as PlaywrightError
@@ -153,6 +154,7 @@ class ProductScraperSkill:
     # --- Сценарий А: прямой URL ---------------------------------------------
 
     async def _scenario_direct_url(self, page: Page, url: str) -> SkillOutput:
+        await self._warm_up(page, url)
         nav = await self._goto(page, url)
         if isinstance(nav, SkillOutput):  # навигация вернула blocked/error
             return nav
@@ -166,6 +168,7 @@ class ProductScraperSkill:
             return SkillOutput.failed(f"Поиск по площадке '{host}' не сконфигурирован")
 
         search_url = selectors.search_url_template.format(query=quote_plus(query))
+        await self._warm_up(page, search_url)
         nav = await self._goto(page, search_url)
         if isinstance(nav, SkillOutput):
             return nav
@@ -204,6 +207,45 @@ class ProductScraperSkill:
         if not href:
             return None
         return urljoin(base_url, href)
+
+    # --- Прогрев antibot-cookies и человеческие задержки --------------------
+
+    async def _warm_up(self, page: Page, target_url: str) -> None:
+        """Открыть homepage площадки перед целевым URL, чтобы получить antibot-
+        cookies (Ozon и др. отдают 403 на прямой заход в ``/search/`` без них).
+
+        Любой сбой прогрева не критичен: целевая навигация всё равно последует,
+        и при реальной блокировке вернётся структурированный ``blocked``.
+        """
+        if not self._config.warmup_origin:
+            return
+        parsed = urlparse(target_url)
+        if not parsed.scheme or not parsed.netloc:
+            return
+        origin = f"{parsed.scheme}://{parsed.netloc}/"
+        if origin == target_url:  # сам target уже homepage — прогрев не нужен
+            return
+        try:
+            await page.goto(
+                origin,
+                wait_until="domcontentloaded",
+                timeout=self._config.navigation_timeout_ms,
+            )
+            try:
+                await page.wait_for_load_state(
+                    "networkidle", timeout=self._config.network_idle_timeout_ms
+                )
+            except PlaywrightTimeoutError:
+                pass
+            await self._jitter()
+        except PlaywrightError:
+            logger.debug("Прогрев homepage %s не удался", origin, exc_info=True)
+
+    async def _jitter(self) -> None:
+        """Случайная пауза 0..human_jitter_ms — имитация живого пользователя."""
+        jitter = self._config.human_jitter_ms
+        if jitter > 0:
+            await asyncio.sleep(random.uniform(0, jitter) / 1000.0)
 
     # --- Навигация с обработкой таймаутов и блокировок ----------------------
 

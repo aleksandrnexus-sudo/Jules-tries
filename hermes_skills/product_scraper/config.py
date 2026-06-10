@@ -181,6 +181,13 @@ class ScraperConfig:
     # Доп. аргументы запуска Chromium (для тонкой настройки агентом).
     extra_launch_args: list[str] = field(default_factory=list)
 
+    # Прогрев antibot-cookies: перед поиском/карточкой открыть homepage площадки
+    # в той же сессии. Многие маркетплейсы (Ozon) отдают 403 на прямой заход в
+    # /search/ без cookies, выставляемых на главной.
+    warmup_origin: bool = True
+    # Случайная «человеческая» задержка 0..N мс после навигаций. 0 = выкл.
+    human_jitter_ms: int = 0
+
 
 def normalize_host(host: str) -> str:
     """Приводим хост к ключу реестра: lowercase, без ``www.``."""

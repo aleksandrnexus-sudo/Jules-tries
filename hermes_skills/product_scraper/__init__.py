@@ -20,7 +20,7 @@ from .scraper import (
     scrape_product_sync,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 __all__ = [
     "scrape_product",
