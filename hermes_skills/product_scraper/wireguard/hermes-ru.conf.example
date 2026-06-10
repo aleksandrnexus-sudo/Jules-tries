@@ -1,0 +1,24 @@
+# Шаблон WireGuard-конфига для маршрутизации скрапера через ваш российский IP.
+#
+# ВАЖНО:
+#   1. Скопируйте этот файл в hermes-ru.conf (без .example) и впишите ключи.
+#   2. hermes-ru.conf добавлен в .gitignore — секреты НЕ попадут в репозиторий.
+#   3. PrivateKey — приватный ключ ЭТОГО клиента (выдаётся вашим роутером).
+#      PublicKey  — публичный ключ роутера (peer).
+#
+# AllowedIPs = 0.0.0.0/0 => full-tunnel: весь трафик процесса уходит через ваш
+# домашний роутер и выходит в интернет под вашим RU residential IP.
+# Поднимать ЭТОТ конфиг нужно в отдельном network namespace (scripts/wg_netns.sh),
+# чтобы full-tunnel не утащил трафик всего хоста/агента Hermes.
+
+[Interface]
+PrivateKey = <ВПИШИТЕ_PRIVATE_KEY_КЛИЕНТА>
+Address = 10.0.0.7/32
+DNS = 10.0.0.1
+MTU = 1200
+
+[Peer]
+PublicKey = <ВПИШИТЕ_PUBLIC_KEY_РОУТЕРА>
+Endpoint = 92.248.252.204:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25
