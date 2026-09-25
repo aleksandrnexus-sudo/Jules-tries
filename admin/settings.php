@@ -1,6 +1,5 @@
 <?php
 require_once 'header.php';
-require_once dirname(__DIR__) . '/includes/functions.php';
 
 $error_message = '';
 $success_message = '';
@@ -84,8 +83,8 @@ $current_scheme = $settings['color_scheme'] ?? 'default';
 <h3>Настройки приложения</h3>
 <p>Здесь вы можете настроить внешний вид и основные параметры приложения.</p>
 
-<?php if ($error_message): ?><div class="alert alert-danger"><?php echo $error_message; ?></div><?php endif; ?>
-<?php if ($success_message): ?><div class="alert alert-success"><?php echo $success_message; ?></div><?php endif; ?>
+<?php if ($error_message): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error_message); ?></div><?php endif; ?>
+<?php if ($success_message): ?><div class="alert alert-success"><?php echo htmlspecialchars($success_message); ?></div><?php endif; ?>
 
 <div class="row">
     <div class="col-md-6">

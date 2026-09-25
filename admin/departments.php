@@ -94,11 +94,11 @@ if ($_SERVER["REQUEST_METHOD"] == "GET") {
     <div class="col-md-4">
         <h3><?php echo $update_mode ? 'Редактировать отдел' : 'Добавить новый отдел'; ?></h3>
         <form action="departments.php" method="post" class="card p-3 bg-light">
-            <input type="hidden" name="id" value="<?php echo $department_id; ?>">
+            <input type="hidden" name="id" value="<?php echo htmlspecialchars((string)$department_id); ?>">
 
             <!-- Вывод сообщений об успехе или ошибке -->
-            <?php if ($error_message): ?><div class="alert alert-danger"><?php echo $error_message; ?></div><?php endif; ?>
-            <?php if ($success_message): ?><div class="alert alert-success"><?php echo $success_message; ?></div><?php endif; ?>
+            <?php if ($error_message): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error_message); ?></div><?php endif; ?>
+            <?php if ($success_message): ?><div class="alert alert-success"><?php echo htmlspecialchars($success_message); ?></div><?php endif; ?>
 
             <div class="form-group">
                 <label for="name">Название отдела</label>

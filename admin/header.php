@@ -2,6 +2,9 @@
 // Centralized authentication and authorization check
 require_once dirname(__DIR__) . '/includes/auth.php';
 
+// Shared helpers (log_event). require_once keeps logs/settings working.
+require_once dirname(__DIR__) . '/includes/functions.php';
+
 // This is an admin-only area. Check for the 'admin' role.
 if ($_SESSION['role'] !== 'admin') {
     header('HTTP/1.1 403 Forbidden');
@@ -54,6 +57,7 @@ $color_scheme = $app_settings['color_scheme'] ?? 'default';
     }
     ?>
     <style>
+        body { padding-bottom: 70px; /* Height of the fixed footer */ }
         .admin-nav .nav-item:not(:last-child) { border-right: 1px solid #555; }
         .admin-nav .nav-link { padding-left: 1rem; padding-right: 1rem; }
         .navbar-brand img { max-height: 30px; margin-right: 10px; vertical-align: middle; }

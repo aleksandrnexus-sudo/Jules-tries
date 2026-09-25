@@ -8,6 +8,9 @@ $success_message = '';
 
 // Определяем дату, за которую нужно показать данные. По умолчанию - сегодня.
 $view_date = $_GET['view_date'] ?? date('Y-m-d');
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $view_date) || strtotime($view_date) === false) {
+    $view_date = date('Y-m-d');
+}
 
 // --- Логика для пользователей с ролью 'department' ---
 // Этот блок кода выполняется, только если у пользователя роль 'department'.
@@ -88,8 +91,8 @@ try {
 ?>
 
 <!-- Вывод сообщений об успехе или ошибке -->
-<?php if ($error_message): ?><div class="alert alert-danger"><?php echo $error_message; ?></div><?php endif; ?>
-<?php if ($success_message): ?><div class="alert alert-success"><?php echo $success_message; ?></div><?php endif; ?>
+<?php if ($error_message): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error_message); ?></div><?php endif; ?>
+<?php if ($success_message): ?><div class="alert alert-success"><?php echo htmlspecialchars($success_message); ?></div><?php endif; ?>
 
 <!-- Форма ввода данных (только для пользователей отделов) -->
 <?php if ($_SESSION['role'] === 'department'): ?>
@@ -101,12 +104,12 @@ try {
         <?php else: ?>
         <form action="index.php" method="post">
             <div class="form-row">
-                <div class="form-group col-md-2"><label>Налицо</label><input type="number" class="form-control" name="present" value="<?php echo $current_status['present']; ?>" required min="0"></div>
-                <div class="form-group col-md-2"><label>Наряд</label><input type="number" class="form-control" name="on_duty" value="<?php echo $current_status['on_duty']; ?>" required min="0"></div>
-                <div class="form-group col-md-2"><label>Командировка</label><input type="number" class="form-control" name="trip" value="<?php echo $current_status['trip']; ?>" required min="0"></div>
-                <div class="form-group col-md-2"><label>Отпуск</label><input type="number" class="form-control" name="vacation" value="<?php echo $current_status['vacation']; ?>" required min="0"></div>
-                <div class="form-group col-md-2"><label>Болен</label><input type="number" class="form-control" name="sick" value="<?php echo $current_status['sick']; ?>" required min="0"></div>
-                <div class="form-group col-md-2"><label>Иное</label><input type="number" class="form-control" name="other" value="<?php echo $current_status['other']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label for="present">Налицо</label><input type="number" class="form-control" id="present" name="present" value="<?php echo $current_status['present']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label for="on_duty">Наряд</label><input type="number" class="form-control" id="on_duty" name="on_duty" value="<?php echo $current_status['on_duty']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label for="trip">Командировка</label><input type="number" class="form-control" id="trip" name="trip" value="<?php echo $current_status['trip']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label for="vacation">Отпуск</label><input type="number" class="form-control" id="vacation" name="vacation" value="<?php echo $current_status['vacation']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label for="sick">Болен</label><input type="number" class="form-control" id="sick" name="sick" value="<?php echo $current_status['sick']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label for="other">Иное</label><input type="number" class="form-control" id="other" name="other" value="<?php echo $current_status['other']; ?>" required min="0"></div>
             </div>
             <div class="form-group">
                 <label for="notes">Примечание</label>
@@ -128,7 +131,7 @@ try {
             <form action="index.php" method="get" class="form-inline">
                 <div class="form-group">
                     <label for="view_date" class="mr-2">Выберите дату:</label>
-                    <input type="date" id="view_date" name="view_date" class="form-control" value="<?php echo $view_date; ?>">
+                    <input type="date" id="view_date" name="view_date" class="form-control" value="<?php echo htmlspecialchars($view_date); ?>" max="<?php echo date('Y-m-d'); ?>">
                 </div>
                 <button type="submit" class="btn btn-secondary ml-2">Показать</button>
             </form>
@@ -152,6 +155,9 @@ try {
                     </tr>
                 </thead>
                 <tbody>
+                    <?php if (empty($summary_data)): ?>
+                    <tr><td colspan="9" class="text-center text-muted">Нет отделов для отображения. Добавьте отделы в панели администратора.</td></tr>
+                    <?php endif; ?>
                     <?php foreach ($summary_data as $row):
                         // Присваиваем значения, используя null-coalescing оператор на случай, если данных за день нет.
                         $present = $row['present'] ?? 0; $on_duty = $row['on_duty'] ?? 0; $trip = $row['trip'] ?? 0;

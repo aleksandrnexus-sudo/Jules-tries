@@ -1,6 +1,5 @@
 <?php
 require_once 'header.php';
-require_once dirname(__DIR__) . '/includes/functions.php';
 
 $error_message = '';
 $success_message = '';
@@ -68,8 +67,8 @@ $logs = $stmt->fetchAll();
 
 <h3>Системные логи</h3>
 
-<?php if ($error_message): ?><div class="alert alert-danger"><?php echo $error_message; ?></div><?php endif; ?>
-<?php if ($success_message): ?><div class="alert alert-success"><?php echo $success_message; ?></div><?php endif; ?>
+<?php if ($error_message): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error_message); ?></div><?php endif; ?>
+<?php if ($success_message): ?><div class="alert alert-success"><?php echo htmlspecialchars($success_message); ?></div><?php endif; ?>
 
 <!-- Форма для фильтрации логов по времени -->
 <div class="card mb-4">
