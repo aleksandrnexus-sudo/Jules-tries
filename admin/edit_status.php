@@ -5,7 +5,13 @@ require_once 'header.php';
 // Инициализация переменных.
 // Данные могут приходить как через GET (при выборе), так и через POST (при сохранении).
 $department_id = $_REQUEST['department_id'] ?? null;
+if ($department_id !== null && !ctype_digit((string)$department_id)) {
+    $department_id = null;
+}
 $report_date = $_REQUEST['report_date'] ?? date('Y-m-d');
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$report_date) || strtotime($report_date) === false) {
+    $report_date = date('Y-m-d');
+}
 $error_message = '';
 $success_message = '';
 
@@ -82,8 +88,8 @@ if (!$status_data) {
 <h3>Редактирование данных о статусе</h3>
 <p>Выберите отдел и дату для загрузки и редактирования данных.</p>
 
-<?php if ($error_message): ?><div class="alert alert-danger"><?php echo $error_message; ?></div><?php endif; ?>
-<?php if ($success_message): ?><div class="alert alert-success"><?php echo $success_message; ?></div><?php endif; ?>
+<?php if ($error_message): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error_message); ?></div><?php endif; ?>
+<?php if ($success_message): ?><div class="alert alert-success"><?php echo htmlspecialchars($success_message); ?></div><?php endif; ?>
 
 <!-- Форма для выбора отдела и даты -->
 <div class="card mb-4">
@@ -102,7 +108,7 @@ if (!$status_data) {
             </div>
             <div class="form-group mr-3">
                 <label for="report_date" class="mr-2">Дата:</label>
-                <input type="date" id="report_date" name="report_date" class="form-control" value="<?php echo $report_date; ?>" required>
+            <input type="date" id="report_date" name="report_date" class="form-control" value="<?php echo htmlspecialchars($report_date); ?>" max="<?php echo date('Y-m-d'); ?>" required>
             </div>
             <button type="submit" class="btn btn-primary">Загрузить данные</button>
         </form>
@@ -114,22 +120,22 @@ if (!$status_data) {
 <div class="card">
     <div class="card-header">
         <h4>
-            Редактирование для отдела "<?php echo htmlspecialchars(array_column($departments, 'name', 'id')[$department_id]); ?>"
+            Редактирование для отдела "<?php echo htmlspecialchars((array_column($departments, 'name', 'id')[$department_id] ?? '—')); ?>"
             за <?php echo date('d.m.Y', strtotime($report_date)); ?>
         </h4>
     </div>
     <div class="card-body">
         <form action="edit_status.php" method="post">
-            <input type="hidden" name="department_id" value="<?php echo $department_id; ?>">
-            <input type="hidden" name="report_date" value="<?php echo $report_date; ?>">
+            <input type="hidden" name="department_id" value="<?php echo htmlspecialchars((string)$department_id); ?>">
+            <input type="hidden" name="report_date" value="<?php echo htmlspecialchars($report_date); ?>">
 
             <div class="form-row">
-                <div class="form-group col-md-2"><label>Налицо</label><input type="number" class="form-control" name="present" value="<?php echo $status_data['present']; ?>" required min="0"></div>
-                <div class="form-group col-md-2"><label>Наряд</label><input type="number" class="form-control" name="on_duty" value="<?php echo $status_data['on_duty']; ?>" required min="0"></div>
-                <div class="form-group col-md-2"><label>Командировка</label><input type="number" class="form-control" name="trip" value="<?php echo $status_data['trip']; ?>" required min="0"></div>
-                <div class="form-group col-md-2"><label>Отпуск</label><input type="number" class="form-control" name="vacation" value="<?php echo $status_data['vacation']; ?>" required min="0"></div>
-                <div class="form-group col-md-2"><label>Болен</label><input type="number" class="form-control" name="sick" value="<?php echo $status_data['sick']; ?>" required min="0"></div>
-                <div class="form-group col-md-2"><label>Иное</label><input type="number" class="form-control" name="other" value="<?php echo $status_data['other']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label for="present">Налицо</label><input type="number" class="form-control" id="present" name="present" value="<?php echo $status_data['present']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label for="on_duty">Наряд</label><input type="number" class="form-control" id="on_duty" name="on_duty" value="<?php echo $status_data['on_duty']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label for="trip">Командировка</label><input type="number" class="form-control" id="trip" name="trip" value="<?php echo $status_data['trip']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label for="vacation">Отпуск</label><input type="number" class="form-control" id="vacation" name="vacation" value="<?php echo $status_data['vacation']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label for="sick">Болен</label><input type="number" class="form-control" id="sick" name="sick" value="<?php echo $status_data['sick']; ?>" required min="0"></div>
+                <div class="form-group col-md-2"><label for="other">Иное</label><input type="number" class="form-control" id="other" name="other" value="<?php echo $status_data['other']; ?>" required min="0"></div>
             </div>
             <div class="form-group">
                 <label for="notes">Примечание</label>
